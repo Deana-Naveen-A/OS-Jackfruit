@@ -1,111 +1,220 @@
-# Multi-Container Runtime
+# OS-Jackfruit — Lightweight Linux Container Runtime
 
-A lightweight Linux container runtime in C with a long-running supervisor and a kernel-space memory monitor.
-
-Read [`project-guide.md`](project-guide.md) for the full project specification.
+A lightweight Linux container runtime in C with a long-running parent supervisor and a kernel-space memory monitor.
 
 ---
 
-## Getting Started
+## Team Information
 
-### 1. Fork the Repository
+| Name | SRN |
+|------|-----|
+| Deana Naveen A | PES1UG24AM077 |
+| Bhoomika Kshatriya | PES1UG24AM068 |
 
-1. Go to [github.com/shivangjhalani/OS-Jackfruit](https://github.com/shivangjhalani/OS-Jackfruit)
-2. Click **Fork** (top-right)
-3. Clone your fork:
+---
 
-```bash
-git clone https://github.com/<your-username>/OS-Jackfruit.git
-cd OS-Jackfruit
-```
+## Build, Load, and Run Instructions
 
-### 2. Set Up Your VM
-
-You need an **Ubuntu 22.04 or 24.04** VM with **Secure Boot OFF**. WSL will not work.
-
-Install dependencies:
+### 1. Install Dependencies
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential linux-headers-$(uname -r)
 ```
 
-### 3. Run the Environment Check
+### 2. Build Everything
 
 ```bash
-cd boilerplate
-chmod +x environment-check.sh
-sudo ./environment-check.sh
+make
 ```
 
-Fix any issues reported before moving on.
-
-### 4. Prepare the Root Filesystem
+### 3. Prepare Root Filesystems
 
 ```bash
 mkdir rootfs-base
 wget https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz
 tar -xzf alpine-minirootfs-3.20.3-x86_64.tar.gz -C rootfs-base
-
-# Make one writable copy per container you plan to run
 cp -a ./rootfs-base ./rootfs-alpha
 cp -a ./rootfs-base ./rootfs-beta
 ```
 
-Do not commit `rootfs-base/` or `rootfs-*` directories to your repository.
 
-### 5. Understand the Boilerplate
-
-The `boilerplate/` folder contains starter files:
-
-| File                   | Purpose                                             |
-| ---------------------- | --------------------------------------------------- |
-| `engine.c`             | User-space runtime and supervisor skeleton          |
-| `monitor.c`            | Kernel module skeleton                              |
-| `monitor_ioctl.h`      | Shared ioctl command definitions                    |
-| `Makefile`             | Build targets for both user-space and kernel module |
-| `cpu_hog.c`            | CPU-bound test workload                             |
-| `io_pulse.c`           | I/O-bound test workload                             |
-| `memory_hog.c`         | Memory-consuming test workload                      |
-| `environment-check.sh` | VM environment preflight check                      |
-
-Use these as your starting point. You are free to restructure the repository however you want — the submission requirements are listed in the project guide.
-
-### 6. Build and Verify
+### 4. Load the Kernel Module
 
 ```bash
-cd boilerplate
-make
+sudo insmod monitor.ko
+ls -l /dev/container_monitor
 ```
 
-If this compiles without errors, your environment is ready.
+### 5. Run the Supervisor and Containers
 
-### 7. GitHub Actions Smoke Check
+```bash
+# Terminal 1 — start the supervisor
+sudo ./engine supervisor ./rootfs-base
 
-Your fork will inherit a minimal GitHub Actions workflow from this repository.
+# Terminal 2 — launch containers
+sudo ./engine start alpha ./rootfs-alpha /bin/sh --soft-mib 48 --hard-mib 80
+sudo ./engine start beta  ./rootfs-beta  /bin/sh --soft-mib 64 --hard-mib 96
 
-That workflow only performs CI-safe checks:
+# List tracked containers
+sudo ./engine ps
 
-- `make -C boilerplate ci`
-- user-space binary compilation (`engine`, `memory_hog`, `cpu_hog`, `io_pulse`)
-- `./boilerplate/engine` with no arguments must print usage and exit with a non-zero status
+# Inspect a container log
+sudo ./engine logs alpha
 
-The CI-safe build command is:
+# Stop a container
+sudo ./engine stop alpha
+
+# Run and wait for exit
+sudo ./engine run alpha ./rootfs-alpha /bin/echo hello
+```
+
+### 6. Run Workloads Inside a Container
+
+```bash
+cp memory_hog ./rootfs-alpha/
+cp cpu_hog    ./rootfs-alpha/
+sudo ./engine start alpha ./rootfs-alpha /memory_hog
+```
+
+### 7. Inspect Kernel Logs
+
+```bash
+dmesg | tail
+```
+
+### 8. Unload and Clean Up
+
+```bash
+sudo ./engine stop alpha
+sudo ./engine stop beta
+# Ctrl+C the supervisor
+sudo rmmod monitor
+sudo rm -rf /tmp/engine-logs/
+sudo rm -f /tmp/engine.sock
+```
+
+### CI-Safe Build
 
 ```bash
 make -C boilerplate ci
 ```
 
-This smoke check does not test kernel-module loading, supervisor runtime behavior, or container execution.
+---
+
+## Demo Screenshots
+
+### 1 — Multi-container supervision
+**Caption:** Two containers (alpha and beta) running concurrently under one supervisor process.
+<img width="1575" height="440" alt="Screenshot 2026-04-13 080948" src="https://github.com/user-attachments/assets/612fcaa4-bc2e-49a9-9f9c-56ec9b6a6e0e" />
+
+### 2 — Metadata tracking
+**Caption:** Output of `engine ps` showing container ID, host PID, start time, state, soft/hard memory limits, and log path.
+
+<img width="1621" height="470" alt="Screenshot 2026-04-13 081053" src="https://github.com/user-attachments/assets/14f378c3-9a13-46a4-99c9-656b3b3952a1" />
+
+
+### 3 — Bounded-buffer logging
+**Caption:** Supervisor terminal showing `[producer]` and `[consumer]` thread activity; `engine logs` output showing captured log contents.
+<img width="1574" height="366" alt="Screenshot 2026-04-14 083121" src="https://github.com/user-attachments/assets/34d109bb-f6bd-4b2d-8aa1-b089d3b8ee9a" />
+
+
+
+### 4 — CLI and IPC
+**Caption:** CLI terminal issuing `engine start` with flags; supervisor terminal showing `[supervisor] received command: start` and responding with `OK:` over the UNIX domain socket.
+
+<img width="1629" height="502" alt="Screenshot 2026-04-14 082559" src="https://github.com/user-attachments/assets/c29663ac-8e42-422a-a3ec-066c58ddd914" />
+
+
+### 5 — Soft-limit warning
+**Caption:** `dmesg` output showing a soft-limit warning event for a container exceeding its soft memory limit.
+
+*(teammate's screenshot)*
+
+### 6 — Hard-limit enforcement
+**Caption:** `dmesg` output showing a container killed after exceeding its hard limit; `engine ps` showing state as `hard_limit_killed`.
+
+*(teammate's screenshot)*
+
+### 7 — Scheduling experiment
+**Caption:** Terminal output showing measurable differences between two scheduling configurations.
+
+*(teammate's screenshot)*
+
+### 8 — Clean teardown
+**Caption:** Supervisor printing `[supervisor] shutting down... done.`; `ps aux` showing no zombie processes.
+
+*(insert screenshot)*
 
 ---
 
-## What to Do Next
+## Engineering Analysis
 
-Read [`project-guide.md`](project-guide.md) end to end. It contains:
+### Isolation Mechanisms
 
-- The six implementation tasks (multi-container runtime, CLI, logging, kernel monitor, scheduling experiments, cleanup)
-- The engineering analysis you must write
-- The exact submission requirements, including what your `README.md` must contain (screenshots, analysis, design decisions)
+Linux namespaces are the kernel mechanism that makes container isolation possible. When `clone()` is called with `CLONE_NEWPID`, the kernel creates a new PID namespace — the first process inside sees itself as PID 1 and cannot see or signal any process outside its namespace. `CLONE_NEWUTS` gives each container its own hostname so changes inside do not affect the host. `CLONE_NEWNS` creates a private mount namespace so mounts inside the container do not propagate to the host.
 
-Your fork's `README.md` should be replaced with your own project documentation as described in the submission package section of the project guide. (As in get rid of all the above content and replace with your README.md)
+`chroot()` complements namespaces by restricting the container's filesystem view. After `chroot(rootfs_path)`, the container cannot reference any path outside its assigned directory.
+
+The host kernel is still shared across all containers. They run on the same kernel version, use the same system call interface, share the same CPU scheduler, and consume memory from the same physical pool.
+
+### Supervisor and Process Lifecycle
+
+When a process exits in Linux, it becomes a zombie until its parent calls `waitpid()` to collect its exit status. Without a persistent parent, every exited container would remain a zombie indefinitely. A long-running supervisor solves this by staying alive for the entire lifetime of all containers it manages.
+
+Process creation uses `clone()` rather than `fork()` because `clone()` accepts namespace flags directly. The child calls `chroot()`, mounts `/proc`, and `execvp()`s the requested command. The parent records the child's PID in a metadata table.
+
+`SIGCHLD` is delivered asynchronously when any container exits. A self-pipe is used: the handler writes one byte to a pipe, and the main loop drains the pipe and calls `waitpid(-1, WNOHANG)` to reap all children. Termination is classified as `stopped` (if `stop_requested` was set), `hard_limit_killed` (if SIGKILL without a stop request), or `killed` otherwise.
+
+### IPC, Threads, and Synchronization
+
+**Path A — Logging (pipes):** Before `clone()`, the supervisor creates a pipe. The child's stdout and stderr are redirected into the write end via `dup2()`. The parent passes the read end to a producer thread, which reads lines and inserts them into a bounded ring buffer. A consumer thread drains the buffer and writes to a per-container log file.
+
+The ring buffer's shared variables (`head`, `tail`, `count`) would be corrupted without mutual exclusion. A `pthread_mutex_t` protects them. Two `pthread_cond_t` variables (`not_full` and `not_empty`) allow threads to sleep rather than busy-wait. The `done` flag is set inside the lock and broadcast to all waiting consumers so no consumer sleeps forever after the producer exits.
+
+**Path B — Control (UNIX domain socket):** CLI client processes connect to `/tmp/engine.sock`, send a command string, and read the response. This is completely separate from the logging pipes. The metadata table is protected by its own `pthread_mutex_t` (`containers_lock`) so CLI operations and logging never block each other.
+
+### Memory Management and Enforcement
+
+RSS (Resident Set Size) measures the physical memory pages currently mapped into a process's address space and present in RAM. It does not count pages swapped out to disk, memory-mapped files not yet accessed, or shared library pages. This means RSS can both overestimate and underestimate true memory usage.
+
+Soft and hard limits are different policies. A soft limit triggers a warning — the process continues but the operator is notified. A hard limit triggers termination. Two thresholds give operators a chance to react before resorting to forced termination.
+
+Memory enforcement belongs in kernel space because user-space monitors are inherently racy — a process could allocate memory between two polling intervals. The kernel has full visibility into actual memory usage and cannot be bypassed by the monitored process.
+
+### Scheduling Behavior
+
+*(To be completed by teammate with experiment results.)*
+
+---
+
+## Design Decisions and Tradeoffs
+
+### Namespace Isolation
+- **Choice:** `clone()` with `CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS` and `chroot()`
+- **Tradeoff:** `chroot()` is simpler than `pivot_root()` but a privileged process can escape via `..` traversal
+- **Justification:** Sufficient for this project's scope with no observable difference in demo scenarios
+
+### Supervisor Architecture
+- **Choice:** Single supervisor with a self-pipe for SIGCHLD and a dedicated accept thread for CLI connections
+- **Tradeoff:** CLI connections are handled sequentially — a blocking `run` command delays other commands
+- **Justification:** Sequential handling is safe and simpler for a single-user CLI tool
+
+### IPC and Logging
+- **Choice:** UNIX domain socket for CLI, anonymous pipes for logging, bounded ring buffer with mutex and condition variables
+- **Tradeoff:** Reading one byte at a time is simple but inefficient for high-throughput output
+- **Justification:** Not a high-throughput scenario; byte-at-a-time reading makes line detection trivial
+
+### Kernel Monitor
+- **Choice:** Linux Kernel Module with a periodic kernel timer polling RSS
+- **Tradeoff:** Polling introduces a window where a process could exceed the hard limit undetected
+- **Justification:** Event-driven enforcement requires hooking the kernel allocator, which is far more complex
+
+### Scheduling Experiments
+*(To be completed by teammate.)*
+
+---
+
+## Scheduler Experiment Results
+
+*(To be completed by teammate. Must include raw timing measurements, at least one comparison table, and explanation of results in terms of Linux CFS scheduling goals.)*
