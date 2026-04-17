@@ -129,24 +129,25 @@ make -C boilerplate ci
 ### 5 — Soft-limit warning
 **Caption:** `dmesg` output showing a soft-limit warning event for a container exceeding its soft memory limit.
 
-*(teammate's screenshot)*
+<img width="1362" height="768" alt="591710d0-d4f0-4d55-a823-a09f29f21c9b" src="https://github.com/user-attachments/assets/6716dac9-4522-4826-b057-11b388ce5993" />
+
 
 ### 6 — Hard-limit enforcement
 **Caption:** `dmesg` output showing a container killed after exceeding its hard limit; `engine ps` showing state as `hard_limit_killed`.
 
-*(teammate's screenshot)*
+<img width="1369" height="541" alt="b8fe48f7-4ec1-4cdb-956f-d29cc9b8e46f" src="https://github.com/user-attachments/assets/fbcc5c80-53e3-4cf5-8f1c-c7ed4759a11c" />
+
 
 ### 7 — Scheduling experiment
 **Caption:** Terminal output showing measurable differences between two scheduling configurations.
 
-*(teammate's screenshot)*
+<img width="670" height="358" alt="8955297f-e5ca-4013-9ad7-7fbfc375f776" src="https://github.com/user-attachments/assets/40348a78-5d8b-4c19-a26e-96e0567dedad" />
+
 
 ### 8 — Clean teardown
 **Caption:** Supervisor printing `[supervisor] shutting down... done.`; `ps aux` showing no zombie processes.
 
-*(insert screenshot)*
-
----
+<img width="727" height="347" alt="3aba4b39-77b0-4cf4-acf7-754befec7b4d" src="https://github.com/user-attachments/assets/03e8f1a2-94a5-4e67-ada7-c3d59d9e6c69" />---
 
 ## Engineering Analysis
 
@@ -184,8 +185,8 @@ Memory enforcement belongs in kernel space because user-space monitors are inher
 
 ### Scheduling Behavior
 
-*(To be completed by teammate with experiment results.)*
-
+The experiment ran a CPU-bound workload (schemed) at three different nice values to observe how the Linux CFS (Completely Fair Scheduler) responds to priority changes.
+The results show a small but consistent trend — lower nice values (higher priority) produced marginally faster completion times. However, the differences are very small (within ~12ms) because Codespaces is a lightly loaded single-workload environment. The CFS scheduler's fairness goal means that when no competing processes exist, all nice values get roughly the same CPU time since there is nothing to be fair against.
 ---
 
 ## Design Decisions and Tradeoffs
