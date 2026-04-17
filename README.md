@@ -211,11 +211,9 @@ The results show a small but consistent trend — lower nice values (higher prio
 - **Tradeoff:** Polling introduces a window where a process could exceed the hard limit undetected
 - **Justification:** Event-driven enforcement requires hooking the kernel allocator, which is far more complex
 
-### Scheduling Experiments
-*(To be completed by teammate.)*
 
 ---
 
 ## Scheduler Experiment Results
 
-*(To be completed by teammate. Must include raw timing measurements, at least one comparison table, and explanation of results in terms of Linux CFS scheduling goals.)*
+<img width="913" height="302" alt="622cb11d-f755-40c5-bf84-78cbc89984b6" src="https://github.com/user-attachments/assets/8ee7a5be-c9dc-4249-a4ab-cdcd406afcb9" />
